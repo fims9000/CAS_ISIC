@@ -1,0 +1,17 @@
+torch>=2.0.0
+torchvision>=0.15.0
+opencv-python>=4.7.0
+Pillow>=8.0.0
+numpy>=1.23
+scikit-learn>=1.1
+
+PyQt5==5.15.9
+PyQt5-Qt5==5.15.2
+PyQt5-sip==12.11.0
+
+captum>=0.6
+shap>=0.44
+lime>=0.2.0
+pytorch-grad-cam>=1.4.8
+scikit-image>=0.20
+matplotlib>=3.7

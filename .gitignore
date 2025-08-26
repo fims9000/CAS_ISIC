@@ -1,0 +1,64 @@
+# Python cache/artifacts
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+.ipynb_checkpoints/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+.env
+.env.*
+
+# IDE / Editor
+.idea/
+.vscode/
+.history/
+
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Build/dist
+build/
+dist/
+*.egg-info/
+
+# Logs
+*.log
+
+# Data and large raw assets
+data/
+datasets/
+downloads/
+images/
+test_files/
+
+# Model checkpoints and large weights
+checkpoints/
+**/checkpoints*/
+*.pth
+*.pt
+*.ckpt
+*.onnx
+
+# Inference outputs
+outputs/
+output/
+**/output*/
+masks/
+**/masks/
+**/XAI_results/
+predictions.csv
+
+# Project-specific
+classification_and_segmentation/
+config/
+utils/
+train/
+1/
+checkpoints.7z
