@@ -138,8 +138,7 @@ CAS_ISIC/
 │   ├── lime_explainer.py       # LIME implementation
 │   └── runner.py               # XAI orchestration
 ├── models/                      # Model definitions
-├── utils/                       # Utility functions
-└── config/                      # Configuration files
+└── utils/                       # Utility functions
 ```
 
 ### Executable Scripts
