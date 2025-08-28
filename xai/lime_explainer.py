@@ -16,7 +16,7 @@ class LIMEExplainer(BaseExplainer):
 
     def explain(self, image_path: Path, output_dir: Path) -> XAIResult:
         image_rgb = load_rgb(image_path)
-        explainer = lime_image.LimeImageExplainer()
+        explainer = lime_image.LimeImageExplainer(random_state=42)
 
         def predict_fn(images_np):
             # images_np: N x H x W x 3 в [0,255]; нормализуем и кидаем в модель через базовый tfm
@@ -27,8 +27,16 @@ class LIMEExplainer(BaseExplainer):
                 x = to_input_tensor(im.astype(np.uint8), self.device)
                 with torch.no_grad():
                     logits = self.model(x)
-                    probs = torch.softmax(logits, dim=1).cpu().numpy()[0]
-                outs.append(probs)
+                    # Универсальная обработка вероятностей:
+                    # если один логит -> используем сигмоиду и собираем [1-p, p];
+                    # иначе — softmax многоклассово
+                    if logits.shape[1] == 1:
+                        p = torch.sigmoid(logits)
+                        probs = torch.cat([1 - p, p], dim=1)
+                    else:
+                        probs = torch.softmax(logits, dim=1)
+                    probs_np = probs.cpu().numpy()[0]
+                outs.append(probs_np)
             return np.array(outs)
 
         explanation = explainer.explain_instance(
@@ -42,8 +50,8 @@ class LIMEExplainer(BaseExplainer):
             print("[XAI][LIME] explanation computed")
         except Exception:
             pass
-        # Берём топ-метку
-        label = explanation.top_labels[0]
+        # Берём топ-метку (для сегментации с одним логитом это будет метка 1)
+        label = explanation.top_labels[0] if explanation.top_labels else 1
         temp, mask = explanation.get_image_and_mask(
             label,
             positive_only=True,

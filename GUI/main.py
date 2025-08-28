@@ -334,7 +334,9 @@ class CASMainWindow(QMainWindow):
                 else:
                     # если выбрали изображение в выходе, пытаемся найти его маску
                     stem = p.stem
-                    mask = p.parent / 'masks' / f"{stem}_mask.png"
+                    # дерево теперь указывает на директорию вывода/masks, поэтому ищем относительно корня вывода
+                    out_dir = Path(getattr(self, 'output_directory', ''))
+                    mask = (out_dir / 'masks') / f"{stem}_mask.png"
                     if mask.exists():
                         self._show_for_mask(mask)
                     else:
@@ -387,17 +389,19 @@ class CASMainWindow(QMainWindow):
             self.input_tree.setVisible(False)
             self.input_empty_label.setVisible(True)
         if hasattr(self, 'output_directory') and self.output_directory:
-            root_idx2 = self.output_model.setRootPath(self.output_directory)
+            # Корень дерева масок: директорияВывода/masks
+            from pathlib import Path as _P
+            out = _P(self.output_directory)
+            (out / 'masks').mkdir(parents=True, exist_ok=True)
+            masks_path = str(out / 'masks')
+            root_idx2 = self.output_model.setRootPath(masks_path)
             self.output_tree.setRootIndex(root_idx2)
             for c in range(1, 4):
                 self.output_tree.setColumnHidden(c, True)
             self.output_tree.setVisible(True)
             self.output_empty_label.setVisible(False)
-            # Корень XAI: создаём подпапки masks и XAI_results при необходимости
+            # Корень XAI: создаём подпапку XAI_results при необходимости
             try:
-                from pathlib import Path as _P
-                out = _P(self.output_directory)
-                # Создаём только XAI_results (папку masks больше не создаём здесь)
                 (out / 'XAI_results').mkdir(parents=True, exist_ok=True)
                 # Привязываем XAI к директории вывода/XAI_results
                 xai_path = str(out / 'XAI_results')
@@ -770,4 +774,21 @@ def main():
     sys.exit(app.exec_())
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except Exception as e:
+        import traceback, os
+        log_path = os.path.join(os.getcwd(), 'gui_error.log')
+        try:
+            with open(log_path, 'w', encoding='utf-8') as f:
+                f.write(''.join(traceback.format_exc()))
+        except Exception:
+            pass
+        try:
+            from PyQt5.QtWidgets import QMessageBox, QApplication
+            app = QApplication.instance() or QApplication(sys.argv)
+            QMessageBox.critical(None, "Ошибка запуска", f"Приложение завершилось с ошибкой.\nЛог: {log_path}")
+        except Exception:
+            pass
+        print("Fatal error. See gui_error.log", file=sys.stderr)
+        raise

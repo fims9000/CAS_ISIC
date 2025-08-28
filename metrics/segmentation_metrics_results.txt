@@ -1,0 +1,37 @@
+=== Сегментация (UNet++) — Метрики для чекпоинта: best_model.pth ===
+
+Loss: 29.94%
+Accuracy: 94.99%
+
+loss_total: 1781910.064453
+loss_bce_per_image: 13602.366904
+bce_per_pixel: 0.207556
+bce_per_pixel_pct: 29.94%
+loss_bce_per_image_pct: 29.94%
+precision_micro: 0.738329
+recall_micro: 0.701606
+specificity_micro: 0.974907
+accuracy_micro: 0.949854
+iou_micro: 0.561889
+dice_micro: 0.719499
+iou_macro: 0.667646
+dice_macro: 0.762054
+tp: 552141
+fp: 195684
+tn: 7602565
+fn: 234826
+total_pixels: 8585216
+prob_mean: 0.138816
+prob_min: 0.000000
+prob_max: 1.000000
+pred_pos_pixels_p05: 1113711
+pred_pos_pixels_p01: 1546097
+
+
+— Краткие описания метрик:
+bce_per_pixel: средняя бинарная кросс-энтропия на пиксель
+tp: число истинно-положительных пикселей
+fp: число ложно-положительных пикселей
+tn: число истинно-отрицательных пикселей
+fn: число ложно-отрицательных пикселей
+total_pixels: общее число учтённых пикселей

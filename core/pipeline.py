@@ -11,11 +11,205 @@ import torch
 from torchvision import models, transforms
 
 # Локальные импорты сегментации
-from classification_and_segmentation.test_generation_segm import (
-    load_model as load_unetpp,
-    infer_one as infer_segmentation_one,
-    build_device as build_seg_device,
-)
+# Локальные функции для сегментации (отвязано от classification_and_segmentation)
+def build_seg_device(option: str) -> torch.device:
+    if option == "auto":
+        return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    return torch.device(option)
+
+
+def _apply_preprocessing(img_rgb: np.ndarray, use_clahe: bool, gamma: float, unsharp: float) -> np.ndarray:
+    out = img_rgb.copy()
+    if use_clahe:
+        lab = cv2.cvtColor(out, cv2.COLOR_RGB2LAB)
+        l, a, b = cv2.split(lab)
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+        l = clahe.apply(l)
+        lab = cv2.merge([l, a, b])
+        out = cv2.cvtColor(lab, cv2.COLOR_LAB2RGB)
+    if gamma and abs(gamma - 1.0) > 1e-3:
+        g = max(0.2, min(3.0, float(gamma)))
+        lut = np.array([((i / 255.0) ** (1.0 / g)) * 255 for i in range(256)]).astype("uint8")
+        out = cv2.LUT(out, lut)
+    if unsharp and unsharp > 0.0:
+        sigma = 1.0
+        blurred = cv2.GaussianBlur(out, (0, 0), sigma)
+        out = cv2.addWeighted(out, 1.0 + float(unsharp), blurred, -float(unsharp), 0)
+    return out
+
+
+def _to_model_input(img_rgb: np.ndarray, input_size: int, device: torch.device) -> torch.Tensor:
+    if input_size > 0:
+        img_rgb = cv2.resize(img_rgb, (input_size, input_size), interpolation=cv2.INTER_LANCZOS4)
+    tensor = torch.from_numpy(img_rgb.transpose(2, 0, 1)).float() / 255.0
+    return tensor.unsqueeze(0).to(device)
+
+
+def _postprocess_mask(mask: np.ndarray, morph: int, min_area: int, fill_holes: bool = False, keep_largest: bool = False) -> np.ndarray:
+    out = mask.copy()
+    if morph and morph >= 3:
+        k = int(morph)
+        k = k if k % 2 == 1 else k + 1
+        kernel = np.ones((k, k), np.uint8)
+        out = cv2.morphologyEx(out, cv2.MORPH_OPEN, kernel)
+        out = cv2.morphologyEx(out, cv2.MORPH_CLOSE, kernel)
+    if fill_holes:
+        m = (out > 0).astype(np.uint8) * 255
+        contours, hierarchy = cv2.findContours(m, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
+        if hierarchy is not None and len(contours) > 0:
+            filled = m.copy()
+            hier = hierarchy[0]
+            for i in range(len(contours)):
+                parent = hier[i][3]
+                if parent != -1:
+                    cv2.drawContours(filled, contours, i, 255, thickness=cv2.FILLED)
+            out = filled
+    if min_area and min_area > 0:
+        num_labels, labels, stats, _ = cv2.connectedComponentsWithStats((out > 0).astype(np.uint8), connectivity=8)
+        keep = np.zeros_like(out)
+        for i in range(1, num_labels):
+            area = stats[i, cv2.CC_STAT_AREA]
+            if area >= min_area:
+                keep[labels == i] = 255
+        out = keep
+    if keep_largest:
+        num_labels, labels, stats, _ = cv2.connectedComponentsWithStats((out > 0).astype(np.uint8), connectivity=8)
+        if num_labels > 1:
+            largest = 1 + int(np.argmax(stats[1:, cv2.CC_STAT_AREA]))
+            out = (labels == largest).astype(np.uint8) * 255
+    return out
+
+
+def _binarize_probs(probs: torch.Tensor, threshold: float, adaptive: bool, out_h: int, out_w: int) -> np.ndarray:
+    mask = (probs > threshold).float()
+    mask_np = mask.squeeze(0).squeeze(0).detach().cpu().numpy().astype(np.uint8)
+    if adaptive:
+        prob_np = probs.squeeze(0).squeeze(0).detach().cpu().numpy().astype(np.float32)
+        if prob_np.shape != (out_h, out_w):
+            prob_np = cv2.resize(prob_np, (out_w, out_h), interpolation=cv2.INTER_LINEAR)
+        prob_u8 = np.clip(prob_np * 255.0, 0, 255).astype(np.uint8)
+        _, mask_np = cv2.threshold(prob_u8, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        mask_np = (mask_np > 0).astype(np.uint8)
+    if mask_np.shape != (out_h, out_w):
+        mask_np = cv2.resize(mask_np, (out_w, out_h), interpolation=cv2.INTER_NEAREST)
+    return (mask_np * 255).astype(np.uint8)
+
+
+def _resize_probs(probs: torch.Tensor, out_h: int, out_w: int) -> np.ndarray:
+    p = probs.squeeze(0).squeeze(0).detach().cpu().numpy().astype(np.float32)
+    if p.shape != (out_h, out_w):
+        p = cv2.resize(p, (out_w, out_h), interpolation=cv2.INTER_LINEAR)
+    return np.clip(p, 0.0, 1.0)
+
+
+def _white_ratio(mask: np.ndarray) -> float:
+    h, w = mask.shape[:2]
+    if h * w == 0:
+        return 0.0
+    return float(np.count_nonzero(mask)) / float(h * w)
+
+
+def _logits_to_mask(logits: torch.Tensor, out_h: int, out_w: int, threshold: float, adaptive: bool, morph: int, min_area: int, fill_holes: bool, keep_largest: bool, debug: bool) -> np.ndarray:
+    probs = torch.sigmoid(logits)
+    mask_np = _binarize_probs(probs, threshold, adaptive, out_h, out_w)
+    mask_np = _postprocess_mask(mask_np, morph, min_area, fill_holes=fill_holes, keep_largest=keep_largest)
+    if debug:
+        p = _resize_probs(probs, out_h, out_w)
+        print(f"[DEBUG] probs min/max/mean: {float(p.min()):.4f}/{float(p.max()):.4f}/{float(p.mean()):.4f}")
+    if _white_ratio(mask_np) >= 0.98:
+        p = _resize_probs(probs, out_h, out_w)
+        t_hi = float(np.percentile(p, 98.0))
+        t_hi = max(0.5, min(0.99, t_hi))
+        tight = (p > t_hi).astype(np.uint8) * 255
+        kernel = np.ones((3, 3), np.uint8)
+        tight = cv2.morphologyEx(tight, cv2.MORPH_OPEN, kernel)
+        alt = _postprocess_mask(tight, morph=0, min_area=0, fill_holes=False, keep_largest=True)
+        if 0 < np.count_nonzero(alt) < (out_h * out_w):
+            return alt
+    if np.count_nonzero(mask_np) == 0:
+        p = _resize_probs(probs, out_h, out_w)
+        prob_u8 = (p * 255.0).astype(np.uint8)
+        _, otsu = cv2.threshold(prob_u8, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        kernel = np.ones((3, 3), np.uint8)
+        otsu = cv2.morphologyEx(otsu, cv2.MORPH_CLOSE, kernel)
+        alt = _postprocess_mask(otsu, morph=0, min_area=0, fill_holes=False, keep_largest=keep_largest)
+        if np.count_nonzero(alt) > 0:
+            return alt
+    if np.count_nonzero(mask_np) == 0:
+        p = _resize_probs(probs, out_h, out_w)
+        t = float(np.percentile(p, 90.0))
+        t = max(0.2, min(0.9, t))
+        dyn = (p > t).astype(np.uint8) * 255
+        kernel = np.ones((3, 3), np.uint8)
+        dyn = cv2.morphologyEx(dyn, cv2.MORPH_CLOSE, kernel)
+        alt = _postprocess_mask(dyn, morph=0, min_area=0, fill_holes=False, keep_largest=keep_largest)
+        if np.count_nonzero(alt) > 0:
+            return alt
+    return mask_np
+
+
+def _read_rgb_cv(path: Path) -> np.ndarray:
+    bgr = cv2.imread(str(path), cv2.IMREAD_COLOR)
+    if bgr is None:
+        raise RuntimeError(f"Не удалось загрузить изображение: {path}")
+    return cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
+
+
+def infer_segmentation_one(model: torch.nn.Module, image_path: Path, input_size: int, threshold: float, device: torch.device, *, debug: bool, use_clahe: bool, gamma: float, unsharp: float, tta: bool, adaptive: bool, morph: int, min_area: int, fill_holes: bool, keep_largest: bool) -> Tuple[np.ndarray, np.ndarray]:
+    img_rgb = _read_rgb_cv(image_path)
+    orig_h, orig_w = img_rgb.shape[:2]
+    img_rgb = _apply_preprocessing(img_rgb, use_clahe, gamma, unsharp)
+    x = _to_model_input(img_rgb, input_size, device)
+    with torch.no_grad():
+        if tta:
+            preds = []
+            logits = model(x)
+            preds.append(logits)
+            x_h = torch.flip(x, dims=[-1])
+            preds.append(torch.flip(model(x_h), dims=[-1]))
+            x_v = torch.flip(x, dims=[-2])
+            preds.append(torch.flip(model(x_v), dims=[-2]))
+            logits = torch.mean(torch.stack(preds, dim=0), dim=0)
+        else:
+            logits = model(x)
+    mask = _logits_to_mask(logits, orig_h, orig_w, threshold, adaptive, morph, min_area, fill_holes, keep_largest, debug)
+    return img_rgb, mask
+
+
+def load_unetpp(checkpoint_path: Path, device: torch.device, *, arch: str, debug: bool) -> torch.nn.Module:
+    # Используем локальную модель UNetPlusPlusOld как «old», иначе пытаемся импортировать новую, если есть
+    try:
+        from models.Unet_segmenter import UNetPlusPlusOld as LocalOld
+        OldClass = LocalOld
+    except Exception:
+        from models.Unet_segmenter import UNetPlusPlusOld as OldClass
+    if arch == 'old':
+        model = OldClass(input_channels=3, output_channels=1, base_channels=64, depth=4,
+                         attention_gates=False, deep_supervision=False, debug_mode=False)
+    else:
+        # На случай отсутствия «новой» архитектуры, используем old как fallback
+        model = OldClass(input_channels=3, output_channels=1, base_channels=64, depth=4,
+                         attention_gates=False, deep_supervision=False, debug_mode=False)
+    model.to(device)
+    ckpt = torch.load(str(checkpoint_path), map_location=device)
+    if isinstance(ckpt, dict):
+        if 'state_dict' in ckpt:
+            state = ckpt['state_dict']
+        elif 'model_state_dict' in ckpt:
+            state = ckpt['model_state_dict']
+        else:
+            state = ckpt
+    else:
+        state = ckpt
+    new_state = {}
+    for k, v in state.items():
+        if isinstance(k, str) and k.startswith('module.'):
+            new_state[k[len('module.'):]] = v
+        else:
+            new_state[k] = v
+    model.load_state_dict(new_state, strict=False)
+    model.eval()
+    return model
 from xai.runner import run_xai_all, build_xai_filename
 
 

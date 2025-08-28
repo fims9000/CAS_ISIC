@@ -1,0 +1,143 @@
+=== Validation (15%) ===
+F1 (macro): 0.938939
+Accuracy: 0.940734
+Counts per class: MEL: 538, NV: 1009, BCC: 216, AKIEC: 576, BKL: 321, DF: 607, VASC: 192
+
+=== Классификация (ResNet18) — Итоговые метрики ===
+
+— Глобальные метрики:
+accuracy: 0.940734
+balanced_accuracy: 0.933305
+cohen_kappa: 0.927192
+matthews_corrcoef: 0.927375
+precision_macro: 0.945484
+recall_macro: 0.933305
+f1_macro: 0.938939
+precision_micro: 0.940734
+recall_micro: 0.940734
+f1_micro: 0.940734
+precision_weighted: 0.941014
+recall_weighted: 0.940734
+f1_weighted: 0.940463
+top1_accuracy: 0.940734
+top5_accuracy: 0.998844
+roc_auc_macro: 0.995455
+average_precision_macro: 0.979489
+roc_auc_micro: 0.997016
+average_precision_micro: 0.986304
+
+— Метрики по классам (precision, recall, f1, support):
+class  precision   recall       f1  support  roc_auc  average_precision
+  MEL   0.907895 0.897770 0.902804      538 0.993124           0.970768
+   NV   0.905571 0.950446 0.927466     1009 0.991874           0.979237
+  BCC   0.929907 0.921296 0.925581      216 0.998307           0.980775
+AKIEC   0.979239 0.982639 0.980936      576 0.998906           0.997286
+  BKL   0.906250 0.813084 0.857143      321 0.987103           0.931625
+   DF   1.000000 0.983526 0.991694      607 0.998905           0.997372
+ VASC   0.989529 0.984375 0.986945      192 0.999962           0.999362
+
+— Матрица ошибок (строки — истинный класс, столбцы — предсказанный):
+       MEL   NV  BCC  AKIEC  BKL   DF  VASC
+MEL    483   45    0      2    6    0     2
+NV      31  959    6      0   13    0     0
+BCC      1    9  199      3    4    0     0
+AKIEC    3    2    2    566    3    0     0
+BKL     12   39    5      4  261    0     0
+DF       2    4    2      2    0  597     0
+VASC     0    1    0      1    1    0   189
+
+=== Test (5%) ===
+F1 (macro): 0.948680
+Accuracy: 0.948007
+Counts per class: MEL: 174, NV: 335, BCC: 63, AKIEC: 196, BKL: 117, DF: 210, VASC: 59
+
+=== Классификация (ResNet18) — Итоговые метрики ===
+
+— Глобальные метрики:
+accuracy: 0.948007
+balanced_accuracy: 0.949757
+cohen_kappa: 0.936190
+matthews_corrcoef: 0.936328
+precision_macro: 0.948842
+recall_macro: 0.949757
+f1_macro: 0.948680
+precision_micro: 0.948007
+recall_micro: 0.948007
+f1_micro: 0.948007
+precision_weighted: 0.949304
+recall_weighted: 0.948007
+f1_weighted: 0.948193
+top1_accuracy: 0.948007
+top5_accuracy: 1.000000
+roc_auc_macro: 0.995997
+average_precision_macro: 0.983057
+roc_auc_micro: 0.996933
+average_precision_micro: 0.986360
+
+— Метрики по классам (precision, recall, f1, support):
+class  precision   recall       f1  support  roc_auc  average_precision
+  MEL   0.870270 0.925287 0.896936      174 0.988177           0.964287
+   NV   0.935103 0.946269 0.940653      335 0.994932           0.985318
+  BCC   0.910448 0.968254 0.938462       63 0.999724           0.995414
+AKIEC   0.994737 0.964286 0.979275      196 0.997401           0.995089
+  BKL   0.952830 0.863248 0.905830      117 0.991816           0.941597
+   DF   0.995169 0.980952 0.988010      210 0.999929           0.999691
+ VASC   0.983333 1.000000 0.991597       59 1.000000           1.000000
+
+— Матрица ошибок (строки — истинный класс, столбцы — предсказанный):
+       MEL   NV  BCC  AKIEC  BKL   DF  VASC
+MEL    161   10    0      1    2    0     0
+NV      14  317    3      0    0    1     0
+BCC      0    0   61      0    1    0     1
+AKIEC    3    0    2    189    2    0     0
+BKL      7    8    1      0  101    0     0
+DF       0    4    0      0    0  206     0
+VASC     0    0    0      0    0    0    59
+
+=== Validation∪Test (20%) ===
+F1 (macro): 0.941445
+Accuracy: 0.942554
+Counts per class: MEL: 712, NV: 1344, BCC: 279, AKIEC: 772, BKL: 438, DF: 817, VASC: 251
+
+=== Классификация (ResNet18) — Итоговые метрики ===
+
+— Глобальные метрики:
+accuracy: 0.942554
+balanced_accuracy: 0.937311
+cohen_kappa: 0.929447
+matthews_corrcoef: 0.929586
+precision_macro: 0.946406
+recall_macro: 0.937311
+f1_macro: 0.941445
+precision_micro: 0.942554
+recall_micro: 0.942554
+f1_micro: 0.942554
+precision_weighted: 0.942925
+recall_weighted: 0.942554
+f1_weighted: 0.942388
+top1_accuracy: 0.942554
+top5_accuracy: 0.999133
+roc_auc_macro: 0.995590
+average_precision_macro: 0.980083
+roc_auc_micro: 0.997007
+average_precision_micro: 0.986377
+
+— Метрики по классам (precision, recall, f1, support):
+class  precision   recall       f1  support  roc_auc  average_precision
+  MEL   0.898187 0.904494 0.901330      712 0.991793           0.968581
+   NV   0.912732 0.949405 0.930708     1344 0.992623           0.980659
+  BCC   0.925267 0.931900 0.928571      279 0.998618           0.983729
+AKIEC   0.983073 0.977979 0.980519      772 0.998489           0.996629
+  BKL   0.918782 0.826484 0.870192      438 0.988438           0.933499
+   DF   0.998756 0.982864 0.990746      817 0.999204           0.998023
+ VASC   0.988048 0.988048 0.988048      251 0.999968           0.999460
+
+— Матрица ошибок (строки — истинный класс, столбцы — предсказанный):
+       MEL    NV  BCC  AKIEC  BKL   DF  VASC
+MEL    644    55    0      3    8    0     2
+NV      45  1276    9      0   13    1     0
+BCC      1     9  260      3    5    0     1
+AKIEC    6     2    4    755    5    0     0
+BKL     19    47    6      4  362    0     0
+DF       2     8    2      2    0  803     0
+VASC     0     1    0      1    1    0   248
